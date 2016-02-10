@@ -22,7 +22,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
   pcl::fromROSMsg(*input, cloud);
   for (size_t i=0; i < cloud.points.size(); i++) {
     pcl::PointXYZRGBNormal point_temp = cloud.points[i];
-    if (sqrt(point_temp.normal_x*point_temp.normal_x+point_temp.normal_y*point_temp.normal_y+point_temp.normal_z*point_temp.normal_z) > 0.01) {
+    if (sqrt(point_temp.normal_x*point_temp.normal_x+point_temp.normal_y*point_temp.normal_y+point_temp.normal_z*point_temp.normal_z) > 0.015) {
       cloud_fast.points.push_back(cloud.points[i]);
     }
   }
@@ -37,7 +37,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
   point_best.points.resize(3); point_best.width = 3; point_best.height = 1;
   bool apply_sac;
   if (cloud_fast.points.size() > 50) {
-    for (size_t i=0; i < 100; i++) {
+    for (size_t i=0; i < 300; i++) {
       unsigned int rand_nums[3];
       while (true) {
         rand_nums[0] = rand() % cloud_fast.width;
@@ -77,7 +77,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         Eigen::Vector3f v_after_temp = v_before_temp + Eigen::Vector3f(point_temp.normal_x, point_temp.normal_y, point_temp.normal_z);
         Eigen::Vector3f v_after_temp_estimated = R * v_before_temp + t;
         float error = (v_after_temp_estimated - v_after_temp).norm();
-        if (error < 0.01){
+        if (error < 0.02){
           inliers ++;
         }
       }
@@ -103,7 +103,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     Eigen::Vector3f v_after_temp = v_before_temp + Eigen::Vector3f(point_temp.normal_x, point_temp.normal_y, point_temp.normal_z);
     Eigen::Vector3f v_after_temp_estimated = R_best * v_before_temp + t_best;
     float error = (v_after_temp_estimated - v_after_temp).norm();
-    if (error < 0.01){
+    if (error < 0.02){
       cloud_sac.points.push_back(cloud.points[j]);
     }
   }
