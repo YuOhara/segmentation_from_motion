@@ -1,0 +1,20 @@
+<launch>
+  <node pkg="jsk_pcl_ros" name="scene_flow_calculator" type="scene_flow_calculator" >
+    <remap from="~image" to="/multisense/left/image_rect_color" />
+    <remap from="~depth" to="/multisense/depth" />
+    <remap from="~info" to="/multisense/left/camera_info" />
+  </node>
+  <node pkg="nodelet" type="nodelet" name="passthrough_x"
+        args="standalone pcl/PassThrough" >
+   <remap from="~input" to="scene_flow_calculator/output"/>
+   <rosparam>
+     filter_field_name: x
+     filter_limit_min: -0.5
+     filter_limit_max: 0.5
+   </rosparam>
+  </node>
+  <node pkg="segmentation_from_motion" name="segmentation_from_motio_node" type="segmentation_from_motion_node" >
+    <!-- <remap from="~input" to="scene_flow_calculator/output" /> -->
+    <remap from="input" to="passthrough_x/output" />
+  </node>
+</launch>
