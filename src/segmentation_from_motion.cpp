@@ -12,7 +12,7 @@
 #include <pcl/common/transforms.h>
 #include <eigen_conversions/eigen_msg.h>
 
-ros::Publisher pub_result_cloud_fast_, pub_result_cloud_sac_, pub_result_cloud_seed_;
+ros::Publisher pub_result_cloud_fast_, pub_result_cloud_sac_, pub_result_cloud_sac2_, pub_result_cloud_sac3_, pub_result_cloud_sac4_, pub_result_cloud_seed_;
 
 void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
 {
@@ -96,27 +96,68 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     ROS_INFO("No moving points");
     apply_sac = false;
   }
-  pcl::PointCloud<pcl::PointXYZRGBNormal> cloud_sac;
-  for (size_t j=0; j < cloud.points.size(); j++) {
-    pcl::PointXYZRGBNormal point_temp = cloud.points[j];
-    Eigen::Vector3f v_before_temp = Eigen::Vector3f(point_temp.x, point_temp.y, point_temp.z);
-    Eigen::Vector3f v_after_temp = v_before_temp + Eigen::Vector3f(point_temp.normal_x, point_temp.normal_y, point_temp.normal_z);
-    Eigen::Vector3f v_after_temp_estimated = R_best * v_before_temp + t_best;
-    float error = (v_after_temp_estimated - v_after_temp).norm();
-    if (error < 0.02){
-      cloud_sac.points.push_back(cloud.points[j]);
-    }
-  }
-  cloud_sac.width=cloud_sac.points.size();
-  cloud_sac.height=1;
   sensor_msgs::PointCloud2 ros_out;
   pcl::toROSMsg(cloud_fast, ros_out);
   ros_out.header = input->header;
   pub_result_cloud_fast_.publish(ros_out); 
   if (apply_sac){
+    pcl::PointCloud<pcl::PointXYZRGBNormal> cloud_sac, cloud_sac2, cloud_sac3, cloud_sac4;
+    for (size_t j=0; j < cloud.points.size(); j++) {
+      pcl::PointXYZRGBNormal point_temp = cloud.points[j];
+      Eigen::Vector3f v_before_temp = Eigen::Vector3f(point_temp.x, point_temp.y, point_temp.z);
+      Eigen::Vector3f v_after_temp = v_before_temp + Eigen::Vector3f(point_temp.normal_x, point_temp.normal_y, point_temp.normal_z);
+      Eigen::Vector3f v_after_temp_estimated = R_best * v_before_temp + t_best;
+      float error = (v_after_temp_estimated - v_after_temp).norm();
+      if (error < 0.02){
+        cloud_sac.points.push_back(cloud.points[j]);
+
+        pcl::PointXYZRGBNormal point_temp2;
+        point_temp2.x = v_after_temp_estimated[0];
+        point_temp2.y = v_after_temp_estimated[1];
+        point_temp2.z = v_after_temp_estimated[2];
+        cloud_sac2.points.push_back(point_temp2);
+        
+        v_after_temp_estimated = R_best * v_after_temp_estimated + t_best;
+        pcl::PointXYZRGBNormal point_temp3;
+        point_temp3.x = v_after_temp_estimated[0];
+        point_temp3.y = v_after_temp_estimated[1];
+        point_temp3.z = v_after_temp_estimated[2];
+        cloud_sac3.points.push_back(point_temp3);
+
+        v_after_temp_estimated = R_best * v_after_temp_estimated + t_best;
+        pcl::PointXYZRGBNormal point_temp4;
+        point_temp4.x = v_after_temp_estimated[0];
+        point_temp4.y = v_after_temp_estimated[1];
+        point_temp4.z = v_after_temp_estimated[2];
+        cloud_sac4.points.push_back(point_temp4);
+        // if (j == 20) {
+        //   Eigen::Vector3f v_a_b = v_after_temp_estimated4;
+        //   for (int k=0; k<10; k++){
+        //     v_a_b = R_best * v_a_b + t_best;
+        //     ROS_INFO("v_a_b, x:%f, y:%f, z:%f", v_a_b[0], v_a_b[1], v_a_b[2]);
+        //   }
+        // }
+      }
+    }
+    cloud_sac.width=cloud_sac2.width=cloud_sac3.width=cloud_sac4.width=cloud_sac.points.size();
+    cloud_sac.height=cloud_sac2.height=cloud_sac3.height=cloud_sac4.height=1;
+
     pcl::toROSMsg(cloud_sac, ros_out);
     ros_out.header = input->header;
     pub_result_cloud_sac_.publish(ros_out);
+
+    pcl::toROSMsg(cloud_sac2, ros_out);
+    ros_out.header = input->header;
+    pub_result_cloud_sac2_.publish(ros_out);
+
+    pcl::toROSMsg(cloud_sac3, ros_out);
+    ros_out.header = input->header;
+    pub_result_cloud_sac3_.publish(ros_out);
+
+    pcl::toROSMsg(cloud_sac4, ros_out);
+    ros_out.header = input->header;
+    pub_result_cloud_sac4_.publish(ros_out);
+
     pcl::toROSMsg(point_best, ros_out);
     ros_out.header = input->header;
     pub_result_cloud_seed_.publish(ros_out);
@@ -134,6 +175,9 @@ int main (int argc, char** argv)
 
   // Create a ROS publisher for the output point cloud
   pub_result_cloud_sac_ = nh.advertise<sensor_msgs::PointCloud2> ("output_sac", 1);
+  pub_result_cloud_sac2_ = nh.advertise<sensor_msgs::PointCloud2> ("output_sac2", 1);
+  pub_result_cloud_sac3_ = nh.advertise<sensor_msgs::PointCloud2> ("output_sac3", 1);
+  pub_result_cloud_sac4_ = nh.advertise<sensor_msgs::PointCloud2> ("output_sac4", 1);
   pub_result_cloud_seed_ = nh.advertise<sensor_msgs::PointCloud2> ("output_seed", 1);
   pub_result_cloud_fast_ = nh.advertise<sensor_msgs::PointCloud2> ("output_fast", 1);
 
