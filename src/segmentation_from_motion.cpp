@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 // PCL specific includes
 #include <sensor_msgs/PointCloud2.h>
+#include <visualization_msgs/MarkerArray.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -12,7 +13,7 @@
 #include <pcl/common/transforms.h>
 #include <eigen_conversions/eigen_msg.h>
 
-ros::Publisher pub_result_cloud_fast_, pub_result_cloud_sac_, pub_result_cloud_sac2_, pub_result_cloud_sac3_, pub_result_cloud_sac4_, pub_result_cloud_seed_;
+ros::Publisher pub_result_cloud_fast_, pub_result_cloud_sac_, pub_result_cloud_sac2_, pub_result_cloud_sac3_, pub_result_cloud_sac4_, pub_result_cloud_seed_, pub_result_pose_seed_;
 
 void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
 {
@@ -36,8 +37,9 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
   pcl::PointCloud<pcl::PointXYZRGBNormal> point_best;
   point_best.points.resize(3); point_best.width = 3; point_best.height = 1;
   bool apply_sac;
+  int mirror_num = 0;
   if (cloud_fast.points.size() > 50) {
-    for (size_t i=0; i < 300; i++) {
+    for (size_t i=0; i < 2000; i++) {
       unsigned int rand_nums[3];
       while (true) {
         rand_nums[0] = rand() % cloud_fast.width;
@@ -65,10 +67,11 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         m_before_ave.col(j) = v_before_relative[j];
         m_after_ave.col(j) = v_after_relative[j];
       }
-
+      
       Eigen::Matrix3f Q = m_after_ave * m_before_ave.transpose();
       JacobiSVD<Eigen::Matrix3f> svd(Q, ComputeFullU | ComputeFullV);
       Eigen::Matrix3f R = svd.matrixV() * svd.matrixU().transpose();
+      if (R.determinant() < 0.0) {mirror_num++; continue;}
       Eigen::Vector3f t = v_after_ave - R * v_before_ave;
       unsigned int inliers = 0;
       for (size_t j=0; j < cloud_fast.points.size(); j++) {
@@ -92,6 +95,8 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     }
     ROS_INFO("Done sac, total moving: %d, max_i: %d", cloud_fast.points.size(), max_inliers);
     apply_sac = true;
+    ROS_INFO("determinant %f", R_best.determinant());
+    ROS_INFO("mirror num %d", mirror_num);
   } else{
     ROS_INFO("No moving points");
     apply_sac = false;
@@ -161,6 +166,32 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     pcl::toROSMsg(point_best, ros_out);
     ros_out.header = input->header;
     pub_result_cloud_seed_.publish(ros_out);
+    
+    visualization_msgs::MarkerArray marker_array_best;
+    for (int i=0; i<3; i++) {
+      visualization_msgs::Marker marker_best;
+      geometry_msgs::Point point;
+
+      marker_best.header = input->header;
+      marker_best.type = visualization_msgs::Marker::ARROW;
+      point.x = point_best.points[i].x;
+      point.y = point_best.points[i].y;
+      point.z = point_best.points[i].z;
+      marker_best.points.push_back(point);
+      point.x = point_best.points[i].x + point_best.points[i].normal_x;
+      point.y = point_best.points[i].y + point_best.points[i].normal_y;
+      point.z = point_best.points[i].z + point_best.points[i].normal_z;
+      marker_best.points.push_back(point);
+      marker_best.id = i;
+      marker_best.ns = std::string("debug_point_array: ");
+      marker_best.scale.x = 0.01;
+      marker_best.scale.y = 0.02;
+      marker_best.scale.z = 0.01;
+      marker_best.color.r = 1.0;
+      marker_best.color.a = 1.0;
+      marker_array_best.markers.push_back(marker_best);
+    }
+    pub_result_pose_seed_.publish(marker_array_best);
   }
 }
 
@@ -180,6 +211,7 @@ int main (int argc, char** argv)
   pub_result_cloud_sac4_ = nh.advertise<sensor_msgs::PointCloud2> ("output_sac4", 1);
   pub_result_cloud_seed_ = nh.advertise<sensor_msgs::PointCloud2> ("output_seed", 1);
   pub_result_cloud_fast_ = nh.advertise<sensor_msgs::PointCloud2> ("output_fast", 1);
+  pub_result_pose_seed_ = nh.advertise<visualization_msgs::MarkerArray> ("output_marker_seed_", 1);
 
   // Spin
   ros::spin ();
