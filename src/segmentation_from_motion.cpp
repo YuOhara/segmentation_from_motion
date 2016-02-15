@@ -12,7 +12,7 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <pcl/common/transforms.h>
 #include <eigen_conversions/eigen_msg.h>
-
+#include <omp.h>
 ros::Publisher pub_result_cloud_fast_, pub_result_cloud_sac_, pub_result_cloud_sac2_, pub_result_cloud_sac3_, pub_result_cloud_sac4_, pub_result_cloud_seed_, pub_result_pose_seed_;
 
 void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
@@ -39,6 +39,11 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
   bool apply_sac;
   int mirror_num = 0;
   if (cloud_fast.points.size() > 50) {
+    omp_lock_t writelock;
+    omp_init_lock(&writelock);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
     for (size_t i=0; i < 2000; i++) {
       unsigned int rand_nums[3];
       while (true) {
@@ -80,10 +85,11 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         Eigen::Vector3f v_after_temp = v_before_temp + Eigen::Vector3f(point_temp.normal_x, point_temp.normal_y, point_temp.normal_z);
         Eigen::Vector3f v_after_temp_estimated = R * v_before_temp + t;
         float error = (v_after_temp_estimated - v_after_temp).norm();
-        if (error < 0.02){
+        if (error < 0.03){
           inliers ++;
         }
       }
+      omp_set_lock(&writelock);
       if (max_inliers < inliers) {
         max_inliers = inliers;
         R_best = R;
@@ -92,6 +98,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
           point_best.points[j]=cloud_fast.points[rand_nums[j]];
         }
       }
+      omp_unset_lock(&writelock);
     }
     ROS_INFO("Done sac, total moving: %d, max_i: %d", cloud_fast.points.size(), max_inliers);
     apply_sac = true;
@@ -113,7 +120,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
       Eigen::Vector3f v_after_temp = v_before_temp + Eigen::Vector3f(point_temp.normal_x, point_temp.normal_y, point_temp.normal_z);
       Eigen::Vector3f v_after_temp_estimated = R_best * v_before_temp + t_best;
       float error = (v_after_temp_estimated - v_after_temp).norm();
-      if (error < 0.02){
+      if (error < 0.03){
         cloud_sac.points.push_back(cloud.points[j]);
 
         pcl::PointXYZRGBNormal point_temp2;
