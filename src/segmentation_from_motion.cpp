@@ -23,7 +23,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
   pcl::fromROSMsg(*input, cloud);
   for (size_t i=0; i < cloud.points.size(); i++) {
     pcl::PointXYZRGBNormal point_temp = cloud.points[i];
-    if (sqrt(point_temp.normal_x*point_temp.normal_x+point_temp.normal_y*point_temp.normal_y+point_temp.normal_z*point_temp.normal_z) > 0.035) {
+    if (sqrt(point_temp.normal_x*point_temp.normal_x+point_temp.normal_y*point_temp.normal_y+point_temp.normal_z*point_temp.normal_z) > 0.02) {
       cloud_fast.points.push_back(cloud.points[i]);
     }
   }
